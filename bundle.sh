@@ -87,7 +87,7 @@ parse() {
     i=${text%%'import '*}
     i=${#i}
     [ $i = ${#text} ] && i=-1
-    while [[ $i -gt -1 ]]; do
+    while [[ $i -ne -1 ]]; do
         if [[ $i -ne 0 && ${text:i-1:1} != $'\n' && ${text:i-1:1} != ' ' ]]; then
             text=${text:i+6}
             i=${text%%'import '*}
@@ -163,13 +163,13 @@ parse() {
     i=${text%%'export '*}
     i=${#i}
     [ $i = ${#text} ] && i=-1
-    while [[ $i -gt -1 ]]; do
+    while [[ $i -ne -1 ]]; do
         text=${text:i+7}
         for name in "${exporta[@]}"; do
             i=${text%%$name*}
             i=${#i}
             [ $i = ${#text} ] && i=-1
-            if [[ $i -gt -1 && $i -lt 3 ]]; then
+            if [[ $i -ne -1 && $i -lt 3 ]]; then
                 text=${text:i+${#name}}
             fi
         done
@@ -292,7 +292,7 @@ build() {
     imports=("$file")
     declare -A modules
     declare -A texts
-    while [[ ${#imports[@]} -gt 0 ]]; do
+    while [[ ${#imports[@]} -ne 0 ]]; do
         file=${imports[0]}
         if [[ "${imported[@]}" =~ "$file" ]]; then
             imports=("${imports[@]:1}")
