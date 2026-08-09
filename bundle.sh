@@ -1,7 +1,5 @@
 # bash bundle.sh a/a.js a/y.js
 
-base64='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$_'
-
 parse() {
     file=$1
     imported=$2
@@ -46,7 +44,11 @@ parse() {
                 continue
             fi
         fi
-        line=${line%${line%%[! ]*}}
+        i=${line:${#line}-1:1}
+        while [[ $i = $'\t' || $i = ' ' ]]; do
+            line=${line::-1}
+            i=${line:${#line}-1:1}
+        done
         if [[ $line ]]; then
             text+=$line$'\n'
         fi
@@ -81,7 +83,7 @@ parse() {
     i=${#i}
     while [[ $i -ne ${#text} ]]; do
         j=${text:i-1:1}
-        if [[ $i -ne 0 && $j != $'\n' && $j != ' ' ]]; then
+        if [[ $i -ne 0 && $j != $'\t' && $j != $'\n' && $j != ' ' ]]; then
             text=${text:i+6}
             i=${text%%'import '*}
             i=${#i}
@@ -94,14 +96,14 @@ parse() {
         text=${text:i}
         i=${text%%'from'*}
         i=${#i}
-        j=${text%%"'"*}
-        k=${text%%'"'*}
+        j=${text%%'"'*}
+        k=${text%%"'"*}
         names=()
         if [[ $i -lt ${#j} && $i -lt ${#k} ]]; then
             while [[ $i -lt ${#text} ]]; do
                 j=${text:i-1:1}
                 k=${text:i+4:1}
-                if [[ ($j = ' ' || $j = '}') && ($k = ' ' || $k = "'" || $k = '"') ]]; then
+                if [[ ($j = ' ' || $j = '}') && ($k = ' ' || $k = '"' || $k = "'") ]]; then
                     break
                 fi
                 i=$((i + 4))
@@ -118,7 +120,7 @@ parse() {
             i=0
         fi
         f=${text:i:1}
-        if [[ $f = "'" || $f = '"' ]]; then
+        if [[ $f = '"' || $f = "'" ]]; then
             text=${text:i+1}
             f=$(resolve "${text%%$f*}" "$file")
             if [[ ! "${order[@]}" =~ "$f" ]]; then
@@ -148,14 +150,14 @@ parse() {
             fi
         fi
     done
-    exporta=('async' 'class' 'const' 'default' 'function' 'let' 'var')
-    repeata=($'\n' ' ' '(' ',' '.' '[')
+    declares=('async' 'class' 'const' 'default' 'function' 'let' 'var')
+    defines=($'\n' ' ' '(' ',' '.' '[')
     text=$texta
     i=${text%%'export '*}
     i=${#i}
     while [[ $i -ne ${#text} ]]; do
         text=${text:i+7}
-        for name in "${exporta[@]}"; do
+        for name in "${declares[@]}"; do
             i=${text%%$name*}
             i=${#i}
             if [[ $i -ne ${#text} && $i -lt 3 ]]; then
@@ -176,33 +178,33 @@ parse() {
             names=${names:i+1}
             IFS=',' read -r -a split <<< "${names%%'}'*}"
         else
-            i=${names%%'='*}
-            j=${names%%'('*}
-            k=${#i}
-            j=${#j}
-            if [[ $k -eq ${#names} || ($j -lt $k && $j -ne ${#names}) ]]; then
+            i=${names%%'('*}
+            i=${#i}
+            j=${names%%'='*}
+            k=${#j}
+            if [[ $k -eq ${#names} || ($i -lt $k && $i -ne ${#names}) ]]; then
                 split+=("$names")
             else
-                j=$k
-                while [[ $j -ne ${#names} ]]; do
-                    split+=("$i")
-                    names=${names:$j}
-                    i=${names%%','*}
-                    i=${#i}
-                    if [[ $i -eq ${#names} ]]; then
+                i=$k
+                while [[ $i -ne ${#names} ]]; do
+                    split+=("$j")
+                    names=${names:$i}
+                    j=${names%%','*}
+                    j=${#j}
+                    if [[ $j -eq ${#names} ]]; then
                         break
                     fi
-                    names=${names:$i}
-                    i=${names%%'='*}
-                    j=${#i}
+                    names=${names:$j}
+                    j=${names%%'='*}
+                    i=${#j}
                 done
             fi
         fi
         for name in "${split[@]}"; do
-            while [[ "${repeata[@]}" =~ ${name::1} ]]; do
+            while [[ "${defines[@]}" =~ ${name::1} ]]; do
                 name=${name:1}
             done
-            for i in "${repeata[@]}"; do
+            for i in "${defines[@]}"; do
                 j=${name%%$i*}
                 if [[ ${#j} -ne ${#name} ]]; then
                     name=$j
@@ -213,6 +215,7 @@ parse() {
         i=${text%%'export '*}
         i=${#i}
     done
+    base64='$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
 
     replace() {
         text=$1
@@ -229,7 +232,7 @@ parse() {
                 echo "$text"
                 return
             fi
-            if [[ $base64 = *"${text:a+i:1}"* || $base64"'." = *"${text:a-1:1}"* ]]; then
+            if [[ $base64 = *"${text:a+i:1}"* || $base64"\"'." = *"${text:a-1:1}"* ]]; then
                 a=$((a + i))
                 continue
             fi
@@ -251,7 +254,12 @@ parse() {
     IFS=$'\n' read -d '' -r -a lines <<< "$text"
     text=''
     for line in "${lines[@]}"; do
-        a=${line#${line%%[! ]*}}
+        a=$line
+        b=${a::1}
+        while [[ $b = $'\t' || $b = ' ' ]]; do
+            a=${a:1}
+            b=${a::1}
+        done
         if [[ $a = 'export default '* ]]; then
             line=${a:15}
         elif [[ $a = 'export '* ]]; then
