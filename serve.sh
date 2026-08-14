@@ -7,19 +7,23 @@ declare -A types=(
     ['js']='application/javascript'
 )
 
-preparea() {
+prepare() {
     folder=$1
-    port=$2
-    read line
-    line=($line)
-    file=${line[1]}
-    file="${file//%20/ }"
-    type=${types[${file##*.}]}
-    if [[ $file != '/'* || ! $type ]]; then
+    line=($2)
+    file="${line[1]//'%20'/' '}"
+    if [[ $file[0] != '/' && ! -f "$folder$file" ]]; then
         file='/x.html'
         type='text/html'
+    else
+        type=${types[${file##*.}]}
     fi
     echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$folder$file")"
+}
+
+preparea() {
+    folder=$1
+    read line
+    echo "$(prepare "$folder" "$line")"
 }
 
 prepareb() {
@@ -27,15 +31,7 @@ prepareb() {
     port=$2
     while read line; do
         if [[ $line = 'GET /'* ]]; then
-            line=($line)
-            file=${line[1]}
-            file="${file//%20/ }"
-            type=${types[${file##*.}]}
-            if [[ ! $type ]]; then
-                file='/x.html'
-                type='text/html'
-            fi
-            : $(echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$folder$file")" | netcat -l -w 0 $port)
+            : $(echo "$(prepare "$folder" "$line")" | netcat -l -w 0 $port)
         fi
     done
 }

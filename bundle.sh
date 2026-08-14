@@ -21,14 +21,14 @@ parse() {
     remove=false
     text=''
     for line in "${lines[@]}"; do
-        if [[ ${line#${line%%[! ]*}} = '//'* ]]; then
+        if [[ ${line#${line%%[![:blank:]]*}} = '//'* ]]; then
             continue
         fi
         if [[ !$remove && $line = *'/*'* && $line != *'//*'* ]]; then
             i=${line%%'*/'*}
             i=${#i}
             if [[ $i -ne ${#line} ]]; then
-                line=${line%%'/*'*}' '${line:$i+2}
+                line=${line%%'/*'*}' '${line:i+2}
             else
                 line=${line%%'/*'*}
                 remove=true
@@ -38,17 +38,13 @@ parse() {
             i=${line%%'*/'*}
             i=${#i}
             if [[ $i -ne ${#line} ]]; then
-                line=${line:$i+2}
+                line=${line:i+2}
                 remove=false
             else
                 continue
             fi
         fi
-        i=${line:${#line}-1:1}
-        while [[ $i = $'\t' || $i = ' ' ]]; do
-            line=${line::-1}
-            i=${line:${#line}-1:1}
-        done
+        line=${line%"${line##*[![:blank:]]}"}
         if [[ $line ]]; then
             text+=$line$'\n'
         fi
@@ -59,14 +55,14 @@ parse() {
         f=$1
         file=$2
         if [[ ${f::2} = './' ]]; then
-            f=${f:2}
+            f=${f#??}
         fi
         i=${f::1}
         if [[ $i != '.' && $i != '/' ]]; then
             f=${file%'/'*}'/'$f
         elif [[ $f = '../'* ]]; then
             while [[ $f = '../'* ]]; do
-                f=${f:3}
+                f=${f#???}
                 file=${file%'/'*}
             done
             f=${file%'/'*}'/'$f
@@ -188,13 +184,13 @@ parse() {
                 i=$k
                 while [[ $i -ne ${#names} ]]; do
                     split+=("$j")
-                    names=${names:$i}
+                    names=${names:i}
                     j=${names%%','*}
                     j=${#j}
                     if [[ $j -eq ${#names} ]]; then
                         break
                     fi
-                    names=${names:$j}
+                    names=${names:j}
                     j=${names%%'='*}
                     i=${#j}
                 done
@@ -202,7 +198,7 @@ parse() {
         fi
         for name in "${split[@]}"; do
             while [[ "${defines[@]}" =~ ${name::1} ]]; do
-                name=${name:1}
+                name=${name#?}
             done
             for i in "${defines[@]}"; do
                 j=${name%%$i*}
@@ -244,7 +240,7 @@ parse() {
 
     text=$texta
     for f in "${!files[@]}"; do
-        path=${f::-3}
+        path=${f%???}
         path=$(echo -n $path | tr -c $base64 '_')
         IFS=$'\n' read -d '' -r -a ref <<< "${files[$f]}"
         for name in "${ref[@]}"; do
@@ -254,17 +250,12 @@ parse() {
     IFS=$'\n' read -d '' -r -a lines <<< "$text"
     text=''
     for line in "${lines[@]}"; do
-        a=$line
-        b=${a::1}
-        while [[ $b = $'\t' || $b = ' ' ]]; do
-            a=${a:1}
-            b=${a::1}
-        done
+        a=${line#${line%%[![:blank:]]*}}
         if [[ $a = 'export default '* ]]; then
             line=${a:15}
         elif [[ $a = 'export '* ]]; then
             line=${a:7}
-            a=${line#${line%%[! ]*}}
+            a=${line#${line%%[![:blank:]]*}}
             if [[ ${a::1} = '{' ]]; then
                 continue
             fi
