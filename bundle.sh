@@ -1,10 +1,58 @@
 # bash bundle.sh a/a.js a/y.js
 
+base64='$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
+
+resolve() {
+    f=$1
+    file=$2
+    if [[ $f = './'* ]]; then
+        f=${f#??}
+    fi
+    i=${f::1}
+    if [[ $i != '.' && $i != '/' ]]; then
+        f=${file%'/'*}'/'$f
+    elif [[ $f = '../'* ]]; then
+        while [[ $f = '../'* ]]; do
+            f=${f#???}
+            file=${file%'/'*}
+        done
+        f=${file%'/'*}'/'$f
+    fi
+    if [[ f != *'.js' ]]; then
+        f+='.js'
+    fi
+    echo "$f"
+}
+
+replace() {
+    text=$1
+    past=$2
+    next=$3
+    a=0
+    i=${#past}
+    j=${#next}
+    while [[ ${text:a} = *"$past"* ]]; do
+        b=${text:a}
+        b=${b%%$past*}
+        a=$((a + ${#b}))
+        if [[ ${#text} -lt $((a + i + 1)) ]]; then
+            echo "$text"
+            return
+        fi
+        if [[ $base64 = *"${text:a+i:1}"* || $base64"\"'." = *"${text:a-1:1}"* ]]; then
+            a=$((a + i))
+            continue
+        fi
+        text=${text::a}$next${text:a+i}
+        a=$((a + j))
+    done
+    echo "$text"
+}
+
 parse() {
     file=$1
-    imported=$2
-    modules=$3
-    texts=$4
+    modules=$2
+    texts=$3
     if [[ -e "$file" ]]; then
         text=$(<"$file")
     else
@@ -50,29 +98,6 @@ parse() {
         fi
     done
     texta=$text
-
-    resolve() {
-        f=$1
-        file=$2
-        if [[ ${f::2} = './' ]]; then
-            f=${f#??}
-        fi
-        i=${f::1}
-        if [[ $i != '.' && $i != '/' ]]; then
-            f=${file%'/'*}'/'$f
-        elif [[ $f = '../'* ]]; then
-            while [[ $f = '../'* ]]; do
-                f=${f#???}
-                file=${file%'/'*}
-            done
-            f=${file%'/'*}'/'$f
-        fi
-        if [[ ${f:-3} != '.js' ]]; then
-            f+='.js'
-        fi
-        echo "$f"
-    }
-
     declare -A files=([$file]='')
     order=()
     i=${text%%'import '*}
@@ -135,7 +160,7 @@ parse() {
         modules[$file]+=$i$'\n'
     done
     for i in "${order[@]}"; do
-        if [[ ! "${imported[@]}" =~ "$i" ]]; then
+        if [[ ! "${!texts[@]}" =~ "$i" ]]; then
             if [[ ! "${!modules[@]}" =~ "$i" ]]; then
                 return
             else
@@ -211,39 +236,12 @@ parse() {
         i=${text%%'export '*}
         i=${#i}
     done
-    base64='$0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz'
-
-    replace() {
-        text=$1
-        past=$2
-        next=$3
-        a=0
-        i=${#past}
-        j=${#next}
-        while [[ ${text:a} = *"$past"* ]]; do
-            b=${text:a}
-            b=${b%%$past*}
-            a=$((a + ${#b}))
-            if [[ ${#text} -lt $((a + i + 1)) ]]; then
-                echo "$text"
-                return
-            fi
-            if [[ $base64 = *"${text:a+i:1}"* || $base64"\"'." = *"${text:a-1:1}"* ]]; then
-                a=$((a + i))
-                continue
-            fi
-            text=${text::a}$next${text:a+i}
-            a=$((a + j))
-        done
-        echo "$text"
-    }
-
     text=$texta
     for f in "${!files[@]}"; do
         path=${f%???}
         path=$(echo -n $path | tr -c $base64 '_')
-        IFS=$'\n' read -d '' -r -a ref <<< "${files[$f]}"
-        for name in "${ref[@]}"; do
+        IFS=$'\n' read -d '' -r -a names <<< "${files[$f]}"
+        for name in "${names[@]}"; do
             text=$(replace "$text" "$name" "$name"'_'"$path")
         done
     done
@@ -279,7 +277,7 @@ build() {
         if [[ "${imported[@]}" =~ "$file" ]]; then
             imports=("${imports[@]:1}")
         else
-            parse "$file" "${imported[@]}/" "${modules[@]}" "${texts[@]}"
+            parse "$file" "${modules[@]}" "${texts[@]}"
             IFS=$'\n' read -d '' -r -a mods <<< "${modules[$file]}"
             imports=("${mods[@]}" "${imports[@]}")
             if [[ "${!texts[@]}" =~ "$file" ]]; then
