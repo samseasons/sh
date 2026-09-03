@@ -11,13 +11,15 @@ prepare() {
     folder=$1
     line=($2)
     file="${line[1]//'%20'/' '}"
-    if [[ $file[0] != '/' && ! -f "$folder$file" ]]; then
+    if [[ $file != '/'* || $file = '/' ]]; then
         file='/x.html'
         type='text/html'
     else
         type=${types[${file##*.}]}
     fi
-    echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$folder$file")"
+    if [[ -e "$folder$file" ]]; then
+        echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$folder$file")"
+    fi
 }
 
 preparea() {

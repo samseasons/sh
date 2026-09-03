@@ -18,13 +18,13 @@ resolve() {
         done
         f=${file%'/'*}'/'$f
     fi
-    if [[ f != *'.js' ]]; then
+    if [[ $f != *'.js' ]]; then
         f+='.js'
     fi
     echo "$f"
 }
 
-replace() {
+substitute() {
     text=$1
     past=$2
     next=$3
@@ -39,7 +39,7 @@ replace() {
             echo "$text"
             return
         fi
-        if [[ $base64 = *"${text:a+i:1}"* || $base64"\"'." = *"${text:a-1:1}"* ]]; then
+        if [[ $base64 = *"${text:a+i:1}"* || ($a -gt 0 && $base64"\"'." = *"${text:a-1:1}"*) ]]; then
             a=$((a + i))
             continue
         fi
@@ -69,7 +69,7 @@ parse() {
     remove=false
     text=''
     for line in "${lines[@]}"; do
-        if [[ ${line#${line%%[![:blank:]]*}} = '//'* ]]; then
+        if [[ ${line#"${line%%[![:blank:]]*}"} = '//'* ]]; then
             continue
         fi
         if [[ !$remove && $line = *'/*'* && $line != *'//*'* ]]; then
@@ -103,12 +103,14 @@ parse() {
     i=${text%%'import '*}
     i=${#i}
     while [[ $i -ne ${#text} ]]; do
-        j=${text:i-1:1}
-        if [[ $i -ne 0 && $j != $'\t' && $j != $'\n' && $j != ' ' ]]; then
-            text=${text:i+6}
-            i=${text%%'import '*}
-            i=${#i}
-            continue
+        if [[ $i -ne 0 ]]; then
+            j=${text:i-1:1}
+            if [[ $j != $'\t' && $j != $'\n' && $j != ' ' ]]; then
+                text=${text:i+6}
+                i=${text%%'import '*}
+                i=${#i}
+                continue
+            fi
         fi
         i=$((i + 6))
         while [[ ${text:i:1} = ' ' ]]; do
@@ -207,7 +209,7 @@ parse() {
                 split+=("$names")
             else
                 i=$k
-                while [[ $i -ne ${#names} ]]; do
+                while [[ $i -ne ${#names} && ${names:i+1:1} != '>' ]]; do
                     split+=("$j")
                     names=${names:i}
                     j=${names%%','*}
@@ -242,18 +244,18 @@ parse() {
         path=$(echo -n $path | tr -c $base64 '_')
         IFS=$'\n' read -d '' -r -a names <<< "${files[$f]}"
         for name in "${names[@]}"; do
-            text=$(replace "$text" "$name" "$name"'_'"$path")
+            text=$(substitute "$text" "$name" "$name"'_'"$path")
         done
     done
     IFS=$'\n' read -d '' -r -a lines <<< "$text"
     text=''
     for line in "${lines[@]}"; do
-        a=${line#${line%%[![:blank:]]*}}
+        a=${line#"${line%%[![:blank:]]*}"}
         if [[ $a = 'export default '* ]]; then
             line=${a:15}
         elif [[ $a = 'export '* ]]; then
             line=${a:7}
-            a=${line#${line%%[![:blank:]]*}}
+            a=${line#"${line%%[![:blank:]]*}"}
             if [[ ${a::1} = '{' ]]; then
                 continue
             fi
