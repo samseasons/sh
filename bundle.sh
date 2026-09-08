@@ -6,14 +6,14 @@ resolve() {
     f=$1
     file=$2
     if [[ $f = './'* ]]; then
-        f=${f#??}
+        f=${f:2}
     fi
     i=${f::1}
     if [[ $i != '.' && $i != '/' ]]; then
         f=${file%'/'*}'/'$f
     elif [[ $f = '../'* ]]; then
         while [[ $f = '../'* ]]; do
-            f=${f#???}
+            f=${f:3}
             file=${file%'/'*}
         done
         f=${file%'/'*}'/'$f
@@ -31,7 +31,7 @@ substitute() {
     a=0
     i=${#past}
     j=${#next}
-    while [[ ${text:a} = *"$past"* ]]; do
+    while [[ ${text:a} = *$past* ]]; do
         b=${text:a}
         b=${b%%$past*}
         a=$((a + ${#b}))
@@ -39,7 +39,7 @@ substitute() {
             echo "$text"
             return
         fi
-        if [[ $base64 = *"${text:a+i:1}"* || ($a -gt 0 && $base64"\"'." = *"${text:a-1:1}"*) ]]; then
+        if [[ $base64 = *${text:a+i:1}* || ($a -ne 0 && $base64"\"'." = *${text:a-1:1}*) ]]; then
             a=$((a + i))
             continue
         fi
@@ -97,9 +97,9 @@ parse() {
             text+=$line$'\n'
         fi
     done
-    texta=$text
     declare -A files=([$file]='')
     order=()
+    texta=$text
     i=${text%%'import '*}
     i=${#i}
     while [[ $i -ne ${#text} ]]; do
@@ -157,19 +157,14 @@ parse() {
         i=${text%%'import '*}
         i=${#i}
     done
+    mods=''
     modules[$file]=''
-    for i in "${order[@]}"; do
-        modules[$file]+=$i$'\n'
-    done
-    for i in "${order[@]}"; do
-        if [[ ! "${!texts[@]}" =~ "$i" ]]; then
-            if [[ ! "${!modules[@]}" =~ "$i" ]]; then
+    for f in "${order[@]}"; do
+        if [[ ! "${!texts[@]}" =~ "$f" ]]; then
+            mods+=$f$'\n'
+            if [[ ! "${!modules[@]}" =~ "$f" ]]; then
+                modules[$file]=$mods
                 return
-            else
-                IFS=$'\n' read -d '' -r -a mods <<< "${modules[$i]}"
-                if [[ ! "${mods[@]}" =~ "$file" ]]; then
-                    return
-                fi
             fi
         fi
     done
@@ -208,10 +203,9 @@ parse() {
             if [[ $k -eq ${#names} || ($i -lt $k && $i -ne ${#names}) ]]; then
                 split+=("$names")
             else
-                i=$k
-                while [[ $i -ne ${#names} && ${names:i+1:1} != '>' ]]; do
+                while [[ $k -ne ${#names} && ${names:k+1:1} != '>' ]]; do
                     split+=("$j")
-                    names=${names:i}
+                    names=${names:k}
                     j=${names%%','*}
                     j=${#j}
                     if [[ $j -eq ${#names} ]]; then
@@ -219,13 +213,13 @@ parse() {
                     fi
                     names=${names:j}
                     j=${names%%'='*}
-                    i=${#j}
+                    k=${#j}
                 done
             fi
         fi
         for name in "${split[@]}"; do
             while [[ "${defines[@]}" =~ ${name::1} ]]; do
-                name=${name#?}
+                name=${name:1}
             done
             for i in "${defines[@]}"; do
                 j=${name%%$i*}
@@ -240,11 +234,11 @@ parse() {
     done
     text=$texta
     for f in "${!files[@]}"; do
-        path=${f%???}
+        path=${f::-3}
         path=$(echo -n $path | tr -c $base64 '_')
         IFS=$'\n' read -d '' -r -a names <<< "${files[$f]}"
         for name in "${names[@]}"; do
-            text=$(substitute "$text" "$name" "$name"'_'"$path")
+            text=$(substitute "$text" $name $name'_'$path)
         done
     done
     IFS=$'\n' read -d '' -r -a lines <<< "$text"
@@ -272,8 +266,8 @@ build() {
     output=${2:-a/y.js}
     imported=()
     imports=("$file")
-    declare -A modules
-    declare -A texts
+    declare -A modules=()
+    declare -A texts=()
     while [[ ${#imports[@]} -ne 0 ]]; do
         file=${imports[0]}
         if [[ "${imported[@]}" =~ "$file" ]]; then
