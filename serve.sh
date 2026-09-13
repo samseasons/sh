@@ -17,8 +17,9 @@ prepare() {
     else
         type=${types[${file##*.}]}
     fi
-    if [[ -e "$folder$file" ]]; then
-        echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$folder$file")"
+    file="$folder$file"
+    if [[ -e "$file" ]]; then
+        echo $'HTTP/1.\ncontent-type:'$type$'\n\n'"$(tr -d '\0' < "$file")"
     fi
 }
 
